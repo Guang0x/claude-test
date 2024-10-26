@@ -1,0 +1,6 @@
+git init
+git add .gitignore app.py requirements.txt templates/
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/claude-chatbot.git
+git push -u origin main
