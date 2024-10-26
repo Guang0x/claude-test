@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 h-screen">
+    <div class="container mx-auto p-4 max-w-3xl">
+        <h1 class="text-2xl font-bold mb-4">Claude Chatbot</h1>
+        
+        <!-- Chat container -->
+        <div class="bg-white rounded-lg shadow-md p-4 h-[600px] flex flex-col">
+            <!-- Messages area -->
+            <div id="chat-messages" class="flex-1 overflow-y-auto mb-4 space-y-4">
+                <!-- Messages will be inserted here -->
+            </div>
+            
+            <!-- Input area -->
+            <div class="border-t pt-4">
+                <form id="chat-form" class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="message-input"
+                        class="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:border-blue-500"
+                        placeholder="Type your message..."
+                        required
+                    >
+                    <button 
+                        type="submit"
+                        class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 focus:outline-none"
+                    >
+                        Send
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        let conversationId = 'default';
+
+        function appendMessage(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `max-w-[70%] rounded-lg p-3 ${
+                isUser ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'
+            }`;
+            bubble.textContent = content;
+            
+            messageDiv.appendChild(bubble);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            // Append user message
+            appendMessage(message, true);
+            messageInput.value = '';
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message,
+                        conversation_id: conversationId
+                    }),
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Append Claude's response
+                appendMessage(data.response, false);
+                conversationId = data.conversation_id;
+                
+            } catch (error) {
+                appendMessage(`Error: ${error.message}`, false);
+            }
+        });
+    </script>
+</body>
+</html>
