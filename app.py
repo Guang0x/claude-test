@@ -8,64 +8,55 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Print API key status (will only show if key exists, not the actual key)
-api_key = os.getenv("ANTHROPIC_API_KEY")
-print(f"API Key exists: {bool(api_key)}")
-print(f"API Key starts with: {api_key[:8] if api_key else 'None'}")
-
-anthropic = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-# Store conversations in memory (for demonstration)
-conversations = {}
+def check_api_key():
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        return "API key is missing"
+    if not key.startswith("sk-ant"):
+        return "API key format is incorrect"
+    return "API key looks valid"
 
 @app.route('/')
 def home():
-    # Add API key status to template
-    api_status = bool(os.getenv("ANTHROPIC_API_KEY"))
+    api_status = check_api_key()
     return render_template('index.html', api_status=api_status)
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    data = request.json
-    user_message = data.get('message')
-    conversation_id = data.get('conversation_id', 'default')
-    
-    # Debug print
-    print(f"Attempting to use API key starting with: {os.getenv('ANTHROPIC_API_KEY')[:8] if os.getenv('ANTHROPIC_API_KEY') else 'None'}")
-    
-    # Initialize conversation history if it doesn't exist
-    if conversation_id not in conversations:
-        conversations[conversation_id] = []
-    
-    # Add user message to history
-    conversations[conversation_id].append({
-        "role": "user",
-        "content": user_message
-    })
-    
     try:
-        # Get response from Claude
+        # Check API key before making the request
+        api_status = check_api_key()
+        if "invalid" in api_status or "missing" in api_status:
+            return jsonify({"error": f"API Key Error: {api_status}"}), 401
+
+        # Initialize Anthropic client for each request
+        anthropic = Anthropic(
+            api_key=os.getenv("ANTHROPIC_API_KEY")
+        )
+
+        data = request.json
+        user_message = data.get('message')
+        
+        # Make a simple test request
         response = anthropic.messages.create(
             model="claude-3-sonnet-20240229",
             max_tokens=1024,
-            messages=conversations[conversation_id]
+            messages=[{
+                "role": "user",
+                "content": user_message
+            }]
         )
         
-        # Add assistant's response to history
-        assistant_message = response.content[0].text
-        conversations[conversation_id].append({
-            "role": "assistant",
-            "content": assistant_message
-        })
-        
         return jsonify({
-            "response": assistant_message,
-            "conversation_id": conversation_id
+            "response": response.content[0].text,
         })
         
     except Exception as e:
-        print(f"Error details: {str(e)}")  # Debug print
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in /api/chat: {str(e)}")  # Server-side logging
+        return jsonify({
+            "error": f"Error: {str(e)}",
+            "api_status": check_api_key()
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
