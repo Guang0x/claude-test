@@ -8,55 +8,56 @@ load_dotenv()
 
 app = Flask(__name__)
 
-def check_api_key():
+def get_api_key():
     key = os.getenv("ANTHROPIC_API_KEY")
-    if not key:
-        return "API key is missing"
-    if not key.startswith("sk-ant"):
-        return "API key format is incorrect"
-    return "API key looks valid"
+    # Print first 10 characters of key for debugging (safe to show sk-ant-xxx)
+    if key:
+        print(f"API key starts with: {key[:10]}...")
+    return key
 
 @app.route('/')
 def home():
-    api_status = check_api_key()
-    return render_template('index.html', api_status=api_status)
+    return render_template('index.html')
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
-        # Check API key before making the request
-        api_status = check_api_key()
-        if "invalid" in api_status or "missing" in api_status:
-            return jsonify({"error": f"API Key Error: {api_status}"}), 401
+        api_key = get_api_key()
+        if not api_key:
+            return jsonify({"error": "API key is not set"}), 401
 
-        # Initialize Anthropic client for each request
-        anthropic = Anthropic(
-            api_key=os.getenv("ANTHROPIC_API_KEY")
+        # Create a new client instance for each request
+        client = Anthropic(
+            api_key=api_key.strip()  # Ensure no whitespace
         )
 
         data = request.json
-        user_message = data.get('message')
-        
-        # Make a simple test request
-        response = anthropic.messages.create(
-            model="claude-3-sonnet-20240229",
-            max_tokens=1024,
-            messages=[{
+        user_message = data.get('message', '')
+
+        # Simple test message
+        messages = [
+            {
                 "role": "user",
                 "content": user_message
-            }]
-        )
-        
-        return jsonify({
-            "response": response.content[0].text,
-        })
-        
+            }
+        ]
+
+        try:
+            response = client.messages.create(
+                model="claude-3-sonnet-20240229",
+                messages=messages,
+                max_tokens=1024,
+                temperature=0.7,
+            )
+            return jsonify({"response": response.content[0].text})
+            
+        except Exception as api_error:
+            print(f"API Error details: {str(api_error)}")
+            return jsonify({"error": f"API Error: {str(api_error)}"}), 401
+
     except Exception as e:
-        print(f"Error in /api/chat: {str(e)}")  # Server-side logging
-        return jsonify({
-            "error": f"Error: {str(e)}",
-            "api_status": check_api_key()
-        }), 500
+        print(f"Server Error details: {str(e)}")
+        return jsonify({"error": f"Server Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
